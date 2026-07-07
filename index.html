@@ -1353,24 +1353,47 @@ function renderResults(term, products) {
   });
 }
 
+/* ==============================================================
+   IMAGE LOADER — Uses JS Image() for reliable mobile loading.
+   Falls back to SVG illustration on timeout or error.
+   ============================================================== */
+
+function loadCardImage(imgEl, illustration, url) {
+  const loader = new Image();
+  let done = false;
+
+  const show = () => {
+    if (done) return;
+    done = true;
+    imgEl.src = url;
+    imgEl.classList.add("loaded");
+    illustration.classList.add("image-loaded");
+  };
+
+  loader.onload = show;
+  loader.onerror = () => {}; // SVG stays visible, no action needed
+
+  // 6-second timeout for slow/mobile networks
+  setTimeout(() => {
+    if (!done) { done = true; /* SVG stays visible */ }
+  }, 6000);
+
+  loader.src = url;
+  // If image was cached, onload may have already fired synchronously
+  if (loader.complete) show();
+}
+
 function createTeaCard(product, index) {
   const card = document.createElement("div");
   card.className = "tea-card";
 
   const catClass = `tea-${product.tea_category || "generic"}`;
   const teaSvg = getTeaSvg(product.tea_category || "generic", index);
-  // Bing tea images — ts*.mm.bing.net CDN accessible from China
-  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index);
 
   card.innerHTML = `
     <div class="card-illustration ${catClass}">
       ${teaSvg}
-      <img class="card-img"
-           src="${imgUrl}"
-           alt="${escapeHTML(product.name)}"
-           loading="lazy"
-           onload="this.classList.add('loaded');this.parentElement.classList.add('image-loaded')"
-           onerror="this.remove()">
+      <img class="card-img" alt="${escapeHTML(product.name)}">
     </div>
     <div class="card-body">
       <div class="card-brand">${escapeHTML(product.name)}</div>
@@ -1390,6 +1413,12 @@ function createTeaCard(product, index) {
         </button>
       </div>
     </div>`;
+
+  // Load image via JS for reliable mobile behavior
+  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index);
+  const imgEl = card.querySelector(".card-img");
+  const illustration = card.querySelector(".card-illustration");
+  loadCardImage(imgEl, illustration, imgUrl);
 
   // Stagger animation
   setTimeout(() => {
