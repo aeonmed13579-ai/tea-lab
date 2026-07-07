@@ -1613,7 +1613,11 @@ function getTeaSvg(category, seed) {
     </svg>`
   };
 
-  return svgs[category] || svgs.generic;
+  let svg = svgs[category] || svgs.generic;
+  // Make gradient IDs unique per card to avoid browser conflicts
+  svg = svg.replace(/id="g(\d)"/g, `id="g$1-${seed}"`);
+  svg = svg.replace(/url\(#g(\d)\)/g, `url(#g$1-${seed})`);
+  return svg;
 }
 
 function updateFavButtonState(productId, card) {
