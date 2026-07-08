@@ -200,6 +200,200 @@ body {
 }
 .quick-tag:hover { background: var(--gold-subtle); border-color: var(--tea-gold); color: var(--tea-gold); }
 
+/* ---- Tea Education Sections (TWG-inspired editorial style) ---- */
+.tea-education {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+.info-block {
+  padding: 64px 0;
+  display: grid;
+  gap: 40px;
+}
+.info-block + .info-block {
+  border-top: 1px solid rgba(197,160,89,0.12);
+}
+
+/* Editorial labels (like TWG's "STEEPED FOR DEPARTURE") */
+.info-label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  letter-spacing: 5px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.info-heading {
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  color: var(--tea-gold);
+  letter-spacing: 4px;
+  margin-bottom: 16px;
+  font-weight: 700;
+}
+.info-divider {
+  width: 60px;
+  height: 2px;
+  background: var(--tea-gold);
+  margin-bottom: 24px;
+  opacity: 0.6;
+}
+.info-body {
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+  color: var(--text-muted);
+  line-height: 1.9;
+  margin-bottom: 16px;
+  max-width: 620px;
+}
+
+/* ---- About Tea Section ---- */
+.info-about {
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+}
+.about-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+}
+.info-stat {
+  text-align: center;
+  padding: 28px 36px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 260px;
+  transition: var(--ease-out);
+}
+.info-stat:hover { border-color: var(--tea-gold); background: rgba(197,160,89,0.08); }
+.stat-number {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 2.4rem;
+  color: var(--tea-gold);
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.stat-label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ---- History Timeline ---- */
+.timeline {
+  position: relative;
+  padding-left: 32px;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--tea-gold), transparent);
+  opacity: 0.4;
+}
+.timeline-item {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 36px;
+  position: relative;
+}
+.timeline-marker {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+.timeline-content h3 {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  color: var(--tea-gold);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+.timeline-content p {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  max-width: 600px;
+}
+
+/* ---- Benefits Grid ---- */
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.benefit-card {
+  padding: 28px 24px;
+  background: var(--surface-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  transition: var(--ease-out);
+}
+.benefit-card:hover {
+  border-color: var(--border-gold);
+  background: rgba(197,160,89,0.05);
+  transform: translateY(-2px);
+}
+.benefit-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 12px;
+}
+.benefit-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  color: var(--text-light);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+.benefit-card p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Scroll-reveal animation for info blocks */
+.info-block {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22,0.61,0.36,1);
+}
+.info-block.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---- Responsive for Education Sections ---- */
+@media (max-width: 768px) {
+  .tea-education { padding: 0 16px 60px; }
+  .info-block { padding: 40px 0; gap: 28px; }
+  .info-about { grid-template-columns: 1fr; }
+  .about-visual { flex-direction: row; flex-wrap: wrap; gap: 12px; }
+  .info-stat { max-width: none; padding: 20px 16px; }
+  .stat-number { font-size: 1.8rem; }
+  .benefits-grid { grid-template-columns: 1fr; gap: 12px; }
+  .timeline { padding-left: 24px; }
+  .timeline::before { left: 11px; }
+  .timeline-item { gap: 16px; margin-bottom: 24px; }
+  .timeline-marker { width: 24px; height: 24px; font-size: 1rem; }
+}
+
 /* ---- Results Grid ---- */
 .results-section { display: none; }
 .results-section.visible { display: block; }
@@ -794,6 +988,118 @@ body {
     </div>
   </section>
 
+  <!-- ============================================================
+       TEA EDUCATION SECTIONS (Inspired by TWG editorial style)
+       ============================================================ -->
+  <section id="teaEducation" class="tea-education">
+
+    <!-- Section 1: About Tea -->
+    <article class="info-block info-about">
+      <div class="info-text">
+        <p class="info-label">THE ART OF INFUSION</p>
+        <h2 class="info-heading">关于茶</h2>
+        <div class="info-divider"></div>
+        <p class="info-body">
+          茶，源自中国，是世界上最古老、最受欢迎的饮品之一。每一片茶叶都承载着土地的记忆——从阳光、雨露到制茶师的双手，每一步都决定着杯中那一抹色泽与香气。
+        </p>
+        <p class="info-body">
+          无论是清晨第一杯清爽的绿茶，午后悠闲的红茶时光，还是晚间沉静的乌龙茶——茶不仅是一种饮品，更是一种生活艺术，一种与自我对话的仪式。
+        </p>
+      </div>
+      <div class="info-visual about-visual">
+        <div class="info-stat">
+          <span class="stat-number">3000+</span>
+          <span class="stat-label">年茶文化历史</span>
+        </div>
+        <div class="info-stat">
+          <span class="stat-number">6</span>
+          <span class="stat-label">大茶类体系</span>
+        </div>
+        <div class="info-stat">
+          <span class="stat-number">50+</span>
+          <span class="stat-label">产茶国家与地区</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- Section 2: History of Tea -->
+    <article class="info-block info-history">
+      <p class="info-label">A VOYAGE THROUGH TIME</p>
+      <h2 class="info-heading">茶的历史</h2>
+      <div class="info-divider"></div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-marker">🍃</div>
+          <div class="timeline-content">
+            <h3>公元前 2737 年</h3>
+            <p>传说神农氏在煮水时，几片野生茶叶飘入锅中，由此发现了茶。中国成为世界茶文化的发源地。</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-marker">📜</div>
+          <div class="timeline-content">
+            <h3>唐代（618–907 年）</h3>
+            <p>陆羽撰写《茶经》，这是世界上第一部关于茶的专著。茶从药饮发展为日常饮品，并传入日本、韩国。</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-marker">🚢</div>
+          <div class="timeline-content">
+            <h3>17 世纪</h3>
+            <p>荷兰东印度公司将茶带入欧洲。茶迅速成为贵族阶层的时尚饮品，下午茶文化在英国兴起。</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-marker">🌏</div>
+          <div class="timeline-content">
+            <h3>现代</h3>
+            <p>今天，茶是全球消费量仅次于水的饮品。从传统功夫茶到现代茶饮，茶文化在不断演变与创新。</p>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- Section 3: Benefits of Tea -->
+    <article class="info-block info-benefits">
+      <p class="info-label">WELLNESS IN EVERY CUP</p>
+      <h2 class="info-heading">喝茶的好处</h2>
+      <div class="info-divider"></div>
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <span class="benefit-icon">🛡️</span>
+          <h3>富含抗氧化物</h3>
+          <p>茶叶中的茶多酚和儿茶素是强效抗氧化剂，有助于对抗自由基，延缓衰老。</p>
+        </div>
+        <div class="benefit-card">
+          <span class="benefit-icon">💓</span>
+          <h3>保护心脏健康</h3>
+          <p>长期饮茶与降低心血管疾病风险相关，有助于调节血压和胆固醇水平。</p>
+        </div>
+        <div class="benefit-card">
+          <span class="benefit-icon">🧠</span>
+          <h3>提升专注力</h3>
+          <p>茶中的咖啡因与 L-茶氨酸协同作用，带来平静而专注的清醒状态，不会产生咖啡的焦虑感。</p>
+        </div>
+        <div class="benefit-card">
+          <span class="benefit-icon">🔥</span>
+          <h3>促进新陈代谢</h3>
+          <p>绿茶和乌龙茶被证实有助于加速新陈代谢，是健康体重管理的天然助手。</p>
+        </div>
+        <div class="benefit-card">
+          <span class="benefit-icon">😌</span>
+          <h3>缓解压力</h3>
+          <p>一杯温热的茶能降低皮质醇水平。茶道仪式本身就是一种正念冥想。</p>
+        </div>
+        <div class="benefit-card">
+          <span class="benefit-icon">🦷</span>
+          <h3>促进口腔健康</h3>
+          <p>茶叶中的氟化物和抗菌成分有助于预防蛀牙，抑制口腔细菌生长。</p>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
   <!-- Error Banner -->
   <div id="errorBanner" class="error-banner">
     <span class="error-icon">⚠️</span>
@@ -1044,6 +1350,21 @@ function init() {
   populateSettingsForm();
   updateApiKeyWarning();
   buildSkeletonGrid();
+  setupScrollReveal();
+}
+
+/* Intersection Observer — fade in education blocks on scroll */
+function setupScrollReveal() {
+  if (!("IntersectionObserver" in window)) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("revealed");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: "0px 0px -40px 0px" });
+  document.querySelectorAll(".info-block").forEach(el => observer.observe(el));
 }
 
 function updateApiKeyWarning() {
@@ -1084,6 +1405,8 @@ function goHome() {
   dom.searchInput.value = "";
   dom.searchInput.focus();
   closeMobileNav();
+  const edu = document.getElementById("teaEducation");
+  if (edu) { edu.style.display = ""; /* reset scroll reveals */ document.querySelectorAll(".info-block.revealed").forEach(el => el.classList.remove("revealed")); setTimeout(setupScrollReveal, 100); }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1106,6 +1429,8 @@ function showResults() {
   dom.searchView.style.display = "none";
   dom.resultsView.classList.add("visible");
   dom.errorBanner.classList.remove("visible");
+  const edu = document.getElementById("teaEducation");
+  if (edu) edu.style.display = "none";
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
