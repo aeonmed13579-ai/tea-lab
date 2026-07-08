@@ -1270,7 +1270,11 @@ const LS = {
 
 function loadConfig() {
   const saved = LS.get("tea_lab_config");
-  return saved ? { ...DEFAULT_CONFIG, ...saved } : { ...DEFAULT_CONFIG };
+  if (!saved) return { ...DEFAULT_CONFIG };
+  // If saved has no API key, keep the default one
+  const merged = { ...DEFAULT_CONFIG, ...saved };
+  if (!merged.apiKey) merged.apiKey = DEFAULT_CONFIG.apiKey;
+  return merged;
 }
 
 function saveConfigToStorage(config) {
