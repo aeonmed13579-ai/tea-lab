@@ -1651,22 +1651,24 @@ async function callAI(teaType, count) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-  const systemPrompt = `你是一位全球茶叶市场专家。请根据用户输入的茶叶类型，生成${count}个产品的信息。
+  const systemPrompt = `你是全球茶叶市场专家。请为"${teaType}"生成${count}个产品。
 
-## 品牌要求（极其重要）：
-- 只使用全球知名、有官网的茶叶品牌。示例：TWG Tea、Twinings、Dilmah、Whittard、Harney & Sons、Mariage Freres、Fortnum & Mason、Lipton、Bigelow、Tea Forte、Vahdam、Numi、Republic of Tea、Mighty Leaf、Tazo；中国品牌：大益、天福茗茶、八马茶业、竹叶青、张一元、正山堂、小罐茶；日本品牌：伊藤园、辻利、一保堂、中村藤吉
-- 每个品牌的 official_website 必须是该品牌真实官网URL（以 https:// 开头）
-- 禁止编造品牌名称
+## 品牌限制：只能从以下品牌中选择（这些品牌有官网且图片库中有对应产品照）：
+- 国际：TWG Tea、Twinings、Dilmah、Whittard、Harney & Sons、Fortnum & Mason、Mariage Freres、Lipton、Bigelow、Tea Forte、Vahdam、Numi、Republic of Tea、Tazo、Mighty Leaf
+- 中国：大益、天福茗茶、八马茶业、竹叶青、张一元、正山堂、小罐茶
+- 日本：伊藤園、辻利、一保堂、中村藤吉
 
-## 其他要求：
-- 价格符合真实市场行情，注明币种
-- 产地具体到地区
-- 描述 80-120 字，包含茶叶特点、口感、冲泡建议
+## 要求：
+- brand 字段必须和上述列表中完全一致（精确匹配，区分中英文）
+- official_website 必须是该品牌的真实官网（https://开头）
+- 价格符合真实行情，注明币种
+- 描述 80-120 字（口感、香气、冲泡建议）
+- 每个品牌最多出现 2 次
 
 ## 输出格式（只输出JSON）：
-{"tea_type":"茶叶类型","products":[{"id":"uuid","name":"产品全名","brand":"品牌名","origin":"产地","price":{"amount":数字,"currency":"币种"},"annual_sales":"销量","description":"描述(80-120字)","tea_category":"green|black|oolong|white|puer|herbal|generic","official_website":"https://..."}]}`;
+{"tea_type":"茶叶类型","products":[{"id":"uuid","name":"产品全名","brand":"品牌名","origin":"产地","price":{"amount":数字,"currency":"币种"},"annual_sales":"销量","description":"描述","tea_category":"green|black|oolong|white|puer|herbal|generic","official_website":"https://..."}]}`;
 
-  const userPrompt = `请为"${teaType}"生成${count}个全球知名品牌的产品信息。只使用有真实官网的知名品牌，覆盖至少5个国家/地区。`;
+  const userPrompt = `为"${teaType}"从指定品牌列表中挑选${count}个最合适的品牌，生成产品。`;
 
   let response;
   try {
@@ -1883,7 +1885,7 @@ function createTeaCard(product, index) {
     </div>`;
 
   // Load image via JS for reliable mobile behavior
-  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index);
+  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index, product.brand);
   const imgEl = card.querySelector(".card-img");
   const illustration = card.querySelector(".card-illustration");
   loadCardImage(imgEl, illustration, imgUrl);
@@ -1899,97 +1901,66 @@ function createTeaCard(product, index) {
   return card;
 }
 
-/* ---- Real tea product image library (Bing CDN — accessible in China) ---- */
-const TEA_PHOTOS = {
-  green: [
-    "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.JXMfNO543UN-Jxxbm5wz2AHaLH&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.HLn7ypqO7l1fej4kV5FUwwHaE8&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.EIYJr71LBat4M9yNuWqfrQHaEK&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.Vn0T2WyCp9Cyjw-uCRvVSQHaGO&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.6_ve8likKjPbXSLhyeRd0AHaCx&w=400&h=280&c=7&rs=1"
-  ],
-  black: [
-    "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.t4hrTaK9sloMnhXnpTfjAgHaEl&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.HIoULrJpCpuctw2oag4OCAHaIL&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.GUiUnh3ZAVW0KO4i2N7H_AHaE6&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.akRtSarpLr1kBdhyVqWbvgHaEa&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.HcZ6aCjRwLO1ZkUwc6iPHgHaD6&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.Mf5SdVpOa3Yb5J6kW9W5kAHaFj&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP._KV8hbGCXP6q6CA8BqmorQAAAA&w=400&h=280&c=7&rs=1"
-  ],
-  oolong: [
-    "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.zGnAktcQzic9YfQcNis4RgHaDp&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.gLx6z8S01H3UuG9rotWaBwHaEe&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.KfcNS3Yit3u9VvJtMq1UGwHaEl&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.y38ovxYomlfIQl4WxYLqaAHaE7&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.gkgeWs3kLdhhkxN1bKwOiQHaKW&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.JOd-peTWTSeldONgGAWqsgHaEi&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.Q6lSdYlI6LErdAnIJN8c7QAAAA&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.e-BLjplQlAyr3pMxl0C5tgAAAA&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.7DZsD5ureWQfHJv3x76QEgHaHR&w=400&h=280&c=7&rs=1"
-  ],
-  white: [
-    "https://ts4.mm.bing.net/th?id=OIP.Vm_1x8g0T7HDh1wx0ibhKgHaFO&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.b0R1mOwxPJM7M4MiTZBaSwHaDt&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.LqOBYzCrdQKYUJjdFEWYXQHaNK&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.k4hRTAdXq7n3fgdHSNsltAHaDa&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.eq8-eW7McD04n0piI1d-RwHaIw&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.lVSdpSBKhLm0njA2xGds-gHaFL&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.f6CwS1RJE5dZ8b9kFTHImwHaEZ&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.8gZOQ6aED7NoeH6UReXZXAHaEt&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.02gHa-wFR3VDAVnbz1eHIQHaEL&w=400&h=280&c=7&rs=1",
-    "https://ts3.explicit.bing.net/th?id=OIP.573nU7biJdd0ypd5I3KaqAHaLI&w=400&h=280&c=7&rs=1"
-  ],
-  puer: [
-    "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.vAsUt8IAzutwk8DoUnkBxgHaKe&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
-    "https://ts3.mm.bing.net/th?id=OIP.gmhKUrXS3GtwdfaLJh6g2AHaJ4&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.dbqMm99NfiNzvWVftxysIgHaGO&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.KjZzeGnC7xf9NXYH4BiyhQHaF9&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIF.%2fIgXu5b0k1AXbezsUr13Gg&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.Nifm2oYuvZBU7fIKh0rDhwHaQC&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.fZqxfysbtMDwHLMEtEW07wHaEe&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.j2WV9TOaAY6qt-yyaKfulQHaER&w=400&h=280&c=7&rs=1"
-  ],
-  herbal: [
-    "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.dz0icvT1bXamBmrGQs6KswHaFj&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.jZW5sVmO7hB1pIQRDig0IgHaE9&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.tUVGkRNGFesHuksjxNImlQHaKe&w=400&h=280&c=7&rs=1",
-    "https://ts1.explicit.bing.net/th?id=OIP.JTzBIFidlF0zFR1FbpWYogHaFj&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIF.XboAep1Z6wln4fjgPLT3Lg&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.GjSoZoixcQbg07EBNd6NWgHaEK&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.i4UREdPIwiIpQqJoUkzTfgHaE8&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.yNSY2lYrAYMCvyasiGKXHQAAAA&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.CZWeFD1slMvE9j-3vlM3ZgHaE8&w=400&h=280&c=7&rs=1"
-  ],
-  generic: [
-    "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
-    "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
-    "https://ts4.mm.bing.net/th?id=OIP._KV8hbGCXP6q6CA8BqmorQAAAA&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
-    "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1"
-  ]
+/* ---- Brand → Product Image Map (Bing CDN — real product photos) ---- */
+const BRAND_IMAGES = {
+  twg:          "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
+  twinings:     "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
+  dilmah:       "https://ts2.mm.bing.net/th?id=OIP.j2WV9TOaAY6qt-yyaKfulQHaER&w=400&h=280&c=7&rs=1",
+  whittard:     "https://ts2.mm.bing.net/th?id=OIP.GUiUnh3ZAVW0KO4i2N7H_AHaE6&w=400&h=280&c=7&rs=1",
+  "harney":     "https://ts3.mm.bing.net/th?id=OIP.HcZ6aCjRwLO1ZkUwc6iPHgHaD6&w=400&h=280&c=7&rs=1",
+  "fortnum":    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
+  "mariage":    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
+  lipton:       "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
+  bigelow:      "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
+  "tea forte":  "https://ts1.explicit.bing.net/th?id=OIP.JTzBIFidlF0zFR1FbpWYogHaFj&w=400&h=280&c=7&rs=1",
+  vahdam:       "https://ts3.mm.bing.net/th?id=OIP.eq8-eW7McD04n0piI1d-RwHaIw&w=400&h=280&c=7&rs=1",
+  numi:         "https://ts4.mm.bing.net/th?id=OIP.02gHa-wFR3VDAVnbz1eHIQHaEL&w=400&h=280&c=7&rs=1",
+  "republic of tea":"https://ts2.mm.bing.net/th?id=OIF.%2fIgXu5b0k1AXbezsUr13Gg&w=400&h=280&c=7&rs=1",
+  tazo:         "https://ts4.mm.bing.net/th?id=OIP.tUVGkRNGFesHuksjxNImlQHaKe&w=400&h=280&c=7&rs=1",
+  "mighty leaf":"https://ts4.mm.bing.net/th?id=OIP.KjZzeGnC7xf9NXYH4BiyhQHaF9&w=400&h=280&c=7&rs=1",
+  "ito en":     "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
+  伊藤園:        "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
+  辻利:          "https://ts3.mm.bing.net/th?id=OIP.k4hRTAdXq7n3fgdHSNsltAHaDa&w=400&h=280&c=7&rs=1",
+  一保堂:        "https://ts4.mm.bing.net/th?id=OIP.EIYJr71LBat4M9yNuWqfrQHaEK&w=400&h=280&c=7&rs=1",
+  中村藤吉:      "https://ts2.mm.bing.net/th?id=OIP.Vn0T2WyCp9Cyjw-uCRvVSQHaGO&w=400&h=280&c=7&rs=1",
+  大益:          "https://ts3.mm.bing.net/th?id=OIP.JXMfNO543UN-Jxxbm5wz2AHaLH&w=400&h=280&c=7&rs=1",
+  天福:          "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
+  天福茗茶:      "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
+  八馬:          "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
+  八马茶业:      "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
+  竹叶青:        "https://ts2.mm.bing.net/th?id=OIP.HLn7ypqO7l1fej4kV5FUwwHaE8&w=400&h=280&c=7&rs=1",
+  张一元:        "https://ts4.mm.bing.net/th?id=OIP.KfcNS3Yit3u9VvJtMq1UGwHaEl&w=400&h=280&c=7&rs=1",
+  正山堂:        "https://ts3.mm.bing.net/th?id=OIP.gLx6z8S01H3UuG9rotWaBwHaEe&w=400&h=280&c=7&rs=1",
+  小罐茶:        "https://ts4.mm.bing.net/th?id=OIP.y38ovxYomlfIQl4WxYLqaAHaE7&w=400&h=280&c=7&rs=1",
 };
 
-function getTeaPhotoUrl(category, index) {
-  const photos = TEA_PHOTOS[category] || TEA_PHOTOS.generic;
-  return photos[index % photos.length];
+/* Category fallback images (used when brand not in library) */
+const CATEGORY_FALLBACK = {
+  green:  "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
+  black:  "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
+  oolong: "https://ts3.mm.bing.net/th?id=OIP.7DZsD5ureWQfHJv3x76QEgHaHR&w=400&h=280&c=7&rs=1",
+  white:  "https://ts4.mm.bing.net/th?id=OIP.Vm_1x8g0T7HDh1wx0ibhKgHaFO&w=400&h=280&c=7&rs=1",
+  puer:   "https://ts2.mm.bing.net/th?id=OIP.fZqxfysbtMDwHLMEtEW07wHaEe&w=400&h=280&c=7&rs=1",
+  herbal: "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1",
+  generic:"https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1"
+};
+
+function getTeaPhotoUrl(category, index, brand) {
+  // 1. Exact brand match
+  if (brand && BRAND_IMAGES[brand.toLowerCase()]) {
+    return BRAND_IMAGES[brand.toLowerCase()];
+  }
+  // 2. Fuzzy brand match
+  if (brand) {
+    const b = brand.toLowerCase();
+    for (const key in BRAND_IMAGES) {
+      if (b.includes(key) || key.includes(b)) {
+        return BRAND_IMAGES[key];
+      }
+    }
+  }
+  // 3. Category fallback
+  return CATEGORY_FALLBACK[category] || CATEGORY_FALLBACK.generic;
 }
 
 /* ==============================================================
@@ -2166,7 +2137,7 @@ function openDetail(product) {
   const card = document.getElementById("detailCard");
   card.innerHTML = `
     <button class="detail-close" onclick="closeDetail()">✕</button>
-    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0)}"
+    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0, product.brand)}"
          alt="${escapeHTML(product.name)}" onerror="this.style.display='none'">
     <div class="detail-body">
       <div class="detail-brand">${escapeHTML(product.brand)}</div>
