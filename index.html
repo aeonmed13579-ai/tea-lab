@@ -1608,8 +1608,6 @@ async function startSearch() {
 
   try {
     const products = await callAI(term, count);
-    // Preload brand-specific images from Wikipedia
-    await preloadBrandImages(products);
     currentResults = products;
     lastSearchTerm = term;
 
@@ -1653,39 +1651,22 @@ async function callAI(teaType, count) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-  const systemPrompt = `你是一位全球茶叶市场专家，精通世界各国茶叶品牌、产地、价格行情。
+  const systemPrompt = `你是一位全球茶叶市场专家。请根据用户输入的茶叶类型，生成${count}个产品的信息。
 
-请根据用户输入的茶叶类型，生成${count}个全球知名品牌的真实产品信息。
+## 品牌要求（极其重要）：
+- 只使用全球知名、有官网的茶叶品牌。示例：TWG Tea、Twinings、Dilmah、Whittard、Harney & Sons、Mariage Freres、Fortnum & Mason、Lipton、Bigelow、Tea Forte、Vahdam、Numi、Republic of Tea、Mighty Leaf、Tazo；中国品牌：大益、天福茗茶、八马茶业、竹叶青、张一元、正山堂、小罐茶；日本品牌：伊藤园、辻利、一保堂、中村藤吉
+- 每个品牌的 official_website 必须是该品牌真实官网URL（以 https:// 开头）
+- 禁止编造品牌名称
 
-## 核心要求：
-1. 品牌必须是在网上可以搜索到的真实知名品牌，覆盖不同国家/地区
-2. 每个产品必须提供该品牌的官方网址（official_website），如无官网则提供该品牌在Amazon/Taobao等平台的商品页URL
-3. 价格必须符合真实市场行情（注明币种）
-4. 产地信息准确到具体地区
-5. 产品名称具体完整（包含等级、系列、规格等）
-6. 描述详细专业（80-150字），包含茶叶特点、口感、冲泡建议
+## 其他要求：
+- 价格符合真实市场行情，注明币种
+- 产地具体到地区
+- 描述 80-120 字，包含茶叶特点、口感、冲泡建议
 
-## 输出格式（严格JSON）：
-{
-  "tea_type": "用户输入的茶叶类型",
-  "products": [
-    {
-      "id": "唯一标识",
-      "name": "产品全名（含等级/系列/规格）",
-      "brand": "品牌名",
-      "origin": "产地（国家+具体地区）",
-      "price": { "amount": 数字, "currency": "币种代码（CNY/USD/GBP/EUR/JPY等）" },
-      "annual_sales": "年销量估算（如'500吨'或'200万盒'）",
-      "description": "详细产品描述（80-150字），包含茶叶特点、口感、香气、冲泡建议",
-      "tea_category": "茶类（green/black/oolong/white/puer/herbal/generic）",
-      "official_website": "品牌官网URL或商品页URL"
-    }
-  ]
-}
+## 输出格式（只输出JSON）：
+{"tea_type":"茶叶类型","products":[{"id":"uuid","name":"产品全名","brand":"品牌名","origin":"产地","price":{"amount":数字,"currency":"币种"},"annual_sales":"销量","description":"描述(80-120字)","tea_category":"green|black|oolong|white|puer|herbal|generic","official_website":"https://..."}]}`;
 
-只输出JSON，不要任何其他文字。`;
-
-  const userPrompt = `请为"${teaType}"生成${count}个全球知名品牌的产品信息。确保品牌真实存在、覆盖至少5个不同国家或地区，每个产品提供官网URL。`;
+  const userPrompt = `请为"${teaType}"生成${count}个全球知名品牌的产品信息。只使用有真实官网的知名品牌，覆盖至少5个国家/地区。`;
 
   let response;
   try {
@@ -1902,7 +1883,7 @@ function createTeaCard(product, index) {
     </div>`;
 
   // Load image via JS for reliable mobile behavior
-  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index, product.brand);
+  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index);
   const imgEl = card.querySelector(".card-img");
   const illustration = card.querySelector(".card-illustration");
   loadCardImage(imgEl, illustration, imgUrl);
@@ -1918,185 +1899,95 @@ function createTeaCard(product, index) {
   return card;
 }
 
-/* ==============================================================
-   DYNAMIC BRAND IMAGE SEARCH
-   Searches Wikipedia + Wikimedia Commons for real brand/product images.
-   ============================================================== */
-
-// Cache: brand name → image URL
-const brandImageCache = {};
-
-async function preloadBrandImages(products) {
-  // Collect unique brands
-  const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
-  if (brands.length === 0) return;
-
-  // Build batch Wikipedia API request for all brands at once
-  const titles = brands.map(b => encodeURIComponent(b)).join("|");
-  const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titles}&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`;
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const resp = await fetch(wikiUrl, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!resp.ok) return;
-    const data = await resp.json();
-    const pages = data.query?.pages || {};
-    for (const pid in pages) {
-      const page = pages[pid];
-      const brandName = page.title;
-      const thumb = page.thumbnail?.source;
-      if (thumb) {
-        // Match back to original brand search term
-        for (const brand of brands) {
-          if (brandName.toLowerCase().includes(brand.toLowerCase()) || brand.toLowerCase().includes(brandName.toLowerCase().split(" ")[0])) {
-            brandImageCache[brand] = thumb;
-            break;
-          }
-        }
-        // Also store by page title
-        brandImageCache[brandName] = thumb;
-      }
-    }
-  } catch (e) {
-    // Wikipedia search failed — will fall back to category images
-    console.log("Brand image preload skipped:", e.message);
-  }
-
-  // For brands without Wikipedia results, try Wikimedia Commons
-  const missingBrands = brands.filter(b => !brandImageCache[b]);
-  if (missingBrands.length > 0) {
-    await searchCommonsForBrands(missingBrands);
-  }
-}
-
-async function searchCommonsForBrands(brands) {
-  for (const brand of brands) {
-    try {
-      const query = encodeURIComponent(`${brand} tea`);
-      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${query}&srnamespace=6&format=json&origin=*&srlimit=3`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      const files = data.query?.search || [];
-      if (files.length > 0) {
-        // Get the first file's image URL
-        const fileName = files[0].title.replace("File:", "");
-        const imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileName)}?width=400`;
-        brandImageCache[brand] = imageUrl;
-      }
-    } catch (e) {
-      // Skip this brand
-    }
-  }
-}
-
-/* ---- Category-based fallback images ---- */
+/* ---- Real tea product image library (Bing CDN — accessible in China) ---- */
 const TEA_PHOTOS = {
   green: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Longjing_tea.jpg/500px-Longjing_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg/500px-Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/2017_Kagoshima_sencha.jpg/500px-2017_Kagoshima_sencha.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Matcha_Scoop.jpg/500px-Matcha_Scoop.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Gyokuro_img_0067.jpg/500px-Gyokuro_img_0067.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Houjicha.jpg/500px-Houjicha.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Genmaicha.JPG/500px-Genmaicha.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Green_tea_3_appearances.jpg/500px-Green_tea_3_appearances.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Tea-Yard_at_Uzi%2C_Yamashiro_%283109909163%29.jpg/500px-Tea-Yard_at_Uzi%2C_Yamashiro_%283109909163%29.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Chado.svg/500px-Chado.svg.png"
+    "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.JXMfNO543UN-Jxxbm5wz2AHaLH&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.HLn7ypqO7l1fej4kV5FUwwHaE8&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.EIYJr71LBat4M9yNuWqfrQHaEK&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.Vn0T2WyCp9Cyjw-uCRvVSQHaGO&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.6_ve8likKjPbXSLhyeRd0AHaCx&w=400&h=280&c=7&rs=1"
   ],
   black: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Assam-Tee_SFTGFOP1.jpg/500px-Assam-Tee_SFTGFOP1.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Darjeeling%2C_India%2C_Darjeeling_tea_in_variety%2C_Black_tea.jpg/500px-Darjeeling%2C_India%2C_Darjeeling_tea_in_variety%2C_Black_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Ceylon_Pettiagalla_Tea.jpg/500px-Ceylon_Pettiagalla_Tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Frisch_aufgebr%C3%BChter_EarlGrey_Tee.jpg/500px-Frisch_aufgebr%C3%BChter_EarlGrey_Tee.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Mug_of_English_breakfast_tea.jpg/500px-Mug_of_English_breakfast_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Keemun_FTGFOP_%281%29.JPG/500px-Keemun_FTGFOP_%281%29.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Lapsang_Souchong.jpg/500px-Lapsang_Souchong.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Milk_in_Irish_Breakfast_tea.jpg/500px-Milk_in_Irish_Breakfast_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/TwiningsLadyGrey_low.jpg/500px-TwiningsLadyGrey_low.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Cup_of_black_tea.JPG/500px-Cup_of_black_tea.JPG"
+    "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.t4hrTaK9sloMnhXnpTfjAgHaEl&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.HIoULrJpCpuctw2oag4OCAHaIL&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.GUiUnh3ZAVW0KO4i2N7H_AHaE6&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.akRtSarpLr1kBdhyVqWbvgHaEa&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.HcZ6aCjRwLO1ZkUwc6iPHgHaD6&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.Mf5SdVpOa3Yb5J6kW9W5kAHaFj&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP._KV8hbGCXP6q6CA8BqmorQAAAA&w=400&h=280&c=7&rs=1"
   ],
   oolong: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Tieguanyin2.jpg/500px-Tieguanyin2.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Da_Hong_Pao_Oolong_tea_leaf.jpg/500px-Da_Hong_Pao_Oolong_tea_leaf.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Jin_Xuan_oolong_tea.jpg/500px-Jin_Xuan_oolong_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Oolong_tea_leaf.jpg/500px-Oolong_tea_leaf.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Dun-fan-mey-zhen-teashopby.jpg/500px-Dun-fan-mey-zhen-teashopby.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Tea_plantation_Alishan.jpg/500px-Tea_plantation_Alishan.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Longjing_tea.jpg/500px-Longjing_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Gyokuro_img_0067.jpg/500px-Gyokuro_img_0067.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg/500px-Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/2017_Kagoshima_sencha.jpg/500px-2017_Kagoshima_sencha.jpg"
+    "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.zGnAktcQzic9YfQcNis4RgHaDp&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.gLx6z8S01H3UuG9rotWaBwHaEe&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.KfcNS3Yit3u9VvJtMq1UGwHaEl&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.y38ovxYomlfIQl4WxYLqaAHaE7&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.gkgeWs3kLdhhkxN1bKwOiQHaKW&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.JOd-peTWTSeldONgGAWqsgHaEi&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.Q6lSdYlI6LErdAnIJN8c7QAAAA&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.e-BLjplQlAyr3pMxl0C5tgAAAA&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.7DZsD5ureWQfHJv3x76QEgHaHR&w=400&h=280&c=7&rs=1"
   ],
   white: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Bai_Hao_Yin_Zhen_tea_leaf_%28Fuding%29.jpg/500px-Bai_Hao_Yin_Zhen_tea_leaf_%28Fuding%29.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Baimudan.JPG/500px-Baimudan.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Shou_Mei_tea.JPG/500px-Shou_Mei_tea.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Longjing_tea.jpg/500px-Longjing_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg/500px-Suzhou_Biluochun_%E8%8B%8F%E5%B7%9E%E7%A2%A7%E8%9E%BA%E6%98%A5.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Gyokuro_img_0067.jpg/500px-Gyokuro_img_0067.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Houjicha.jpg/500px-Houjicha.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Genmaicha.JPG/500px-Genmaicha.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/2017_Kagoshima_sencha.jpg/500px-2017_Kagoshima_sencha.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Matcha_Scoop.jpg/500px-Matcha_Scoop.jpg"
+    "https://ts4.mm.bing.net/th?id=OIP.Vm_1x8g0T7HDh1wx0ibhKgHaFO&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.b0R1mOwxPJM7M4MiTZBaSwHaDt&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.LqOBYzCrdQKYUJjdFEWYXQHaNK&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.k4hRTAdXq7n3fgdHSNsltAHaDa&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.eq8-eW7McD04n0piI1d-RwHaIw&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.lVSdpSBKhLm0njA2xGds-gHaFL&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.f6CwS1RJE5dZ8b9kFTHImwHaEZ&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.8gZOQ6aED7NoeH6UReXZXAHaEt&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.02gHa-wFR3VDAVnbz1eHIQHaEL&w=400&h=280&c=7&rs=1",
+    "https://ts3.explicit.bing.net/th?id=OIP.573nU7biJdd0ypd5I3KaqAHaLI&w=400&h=280&c=7&rs=1"
   ],
   puer: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/%22Da_Yi_Gong_Tuo%22_Pu-erh_shou_cha%2C_2010.jpg/500px-%22Da_Yi_Gong_Tuo%22_Pu-erh_shou_cha%2C_2010.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/4/4c/Zhuan_cha.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Assam-Tee_SFTGFOP1.jpg/500px-Assam-Tee_SFTGFOP1.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Darjeeling%2C_India%2C_Darjeeling_tea_in_variety%2C_Black_tea.jpg/500px-Darjeeling%2C_India%2C_Darjeeling_tea_in_variety%2C_Black_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Ceylon_Pettiagalla_Tea.jpg/500px-Ceylon_Pettiagalla_Tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Lapsang_Souchong.jpg/500px-Lapsang_Souchong.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Keemun_FTGFOP_%281%29.JPG/500px-Keemun_FTGFOP_%281%29.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Tieguanyin2.jpg/500px-Tieguanyin2.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Da_Hong_Pao_Oolong_tea_leaf.jpg/500px-Da_Hong_Pao_Oolong_tea_leaf.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Oolong_tea_leaf.jpg/500px-Oolong_tea_leaf.jpg"
+    "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.vAsUt8IAzutwk8DoUnkBxgHaKe&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
+    "https://ts3.mm.bing.net/th?id=OIP.gmhKUrXS3GtwdfaLJh6g2AHaJ4&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.dbqMm99NfiNzvWVftxysIgHaGO&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.KjZzeGnC7xf9NXYH4BiyhQHaF9&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIF.%2fIgXu5b0k1AXbezsUr13Gg&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.Nifm2oYuvZBU7fIKh0rDhwHaQC&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.fZqxfysbtMDwHLMEtEW07wHaEe&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.j2WV9TOaAY6qt-yyaKfulQHaER&w=400&h=280&c=7&rs=1"
   ],
   herbal: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Kamomillasaunio_%28Matricaria_recutita%29.JPG/500px-Kamomillasaunio_%28Matricaria_recutita%29.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Chrysanthemum_tea.JPG/500px-Chrysanthemum_tea.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Hibiscus_tea.jpg/500px-Hibiscus_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Loose_Jasmine_Tea_Leaves.jpg/500px-Loose_Jasmine_Tea_Leaves.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Rooibos_geschnitten.jpg/500px-Rooibos_geschnitten.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Ginger_tea.jpg/500px-Ginger_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Rose_hips.jpg/500px-Rose_hips.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Lemon_balm_plant.jpg/500px-Lemon_balm_plant.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Kombucha_Mature.jpg/500px-Kombucha_Mature.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/2/28/Ilex_paraguariensis_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-074.jpg"
+    "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.dz0icvT1bXamBmrGQs6KswHaFj&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.jZW5sVmO7hB1pIQRDig0IgHaE9&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.tUVGkRNGFesHuksjxNImlQHaKe&w=400&h=280&c=7&rs=1",
+    "https://ts1.explicit.bing.net/th?id=OIP.JTzBIFidlF0zFR1FbpWYogHaFj&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIF.XboAep1Z6wln4fjgPLT3Lg&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.GjSoZoixcQbg07EBNd6NWgHaEK&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.i4UREdPIwiIpQqJoUkzTfgHaE8&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.yNSY2lYrAYMCvyasiGKXHQAAAA&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.CZWeFD1slMvE9j-3vlM3ZgHaE8&w=400&h=280&c=7&rs=1"
   ],
   generic: [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Longjing_tea.jpg/500px-Longjing_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Cup_of_black_tea.JPG/500px-Cup_of_black_tea.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Oolong_tea_leaf.jpg/500px-Oolong_tea_leaf.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Bai_Hao_Yin_Zhen_tea_leaf_%28Fuding%29.jpg/500px-Bai_Hao_Yin_Zhen_tea_leaf_%28Fuding%29.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/%22Da_Yi_Gong_Tuo%22_Pu-erh_shou_cha%2C_2010.jpg/500px-%22Da_Yi_Gong_Tuo%22_Pu-erh_shou_cha%2C_2010.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Chrysanthemum_tea.JPG/500px-Chrysanthemum_tea.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Green_tea_3_appearances.jpg/500px-Green_tea_3_appearances.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Mug_of_English_breakfast_tea.jpg/500px-Mug_of_English_breakfast_tea.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Tea-Yard_at_Uzi%2C_Yamashiro_%283109909163%29.jpg/500px-Tea-Yard_at_Uzi%2C_Yamashiro_%283109909163%29.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Matcha_Scoop.jpg/500px-Matcha_Scoop.jpg"
+    "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
+    "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
+    "https://ts4.mm.bing.net/th?id=OIP._KV8hbGCXP6q6CA8BqmorQAAAA&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
+    "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1"
   ]
 };
 
-function getTeaPhotoUrl(category, index, brand) {
-  // 1. Brand-specific Wikipedia image (highest priority)
-  if (brand && brandImageCache[brand]) {
-    return brandImageCache[brand];
-  }
-  // Also check fuzzy match
-  if (brand) {
-    for (const key in brandImageCache) {
-      if (key.toLowerCase().includes(brand.toLowerCase()) || brand.toLowerCase().includes(key.toLowerCase())) {
-        return brandImageCache[key];
-      }
-    }
-  }
-  // 2. Category fallback (Wikipedia-curated tea images)
+function getTeaPhotoUrl(category, index) {
   const photos = TEA_PHOTOS[category] || TEA_PHOTOS.generic;
   return photos[index % photos.length];
 }
@@ -2275,7 +2166,7 @@ function openDetail(product) {
   const card = document.getElementById("detailCard");
   card.innerHTML = `
     <button class="detail-close" onclick="closeDetail()">✕</button>
-    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0, product.brand)}"
+    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0)}"
          alt="${escapeHTML(product.name)}" onerror="this.style.display='none'">
     <div class="detail-body">
       <div class="detail-brand">${escapeHTML(product.brand)}</div>
