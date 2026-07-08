@@ -1608,6 +1608,8 @@ async function startSearch() {
 
   try {
     const products = await callAI(term, count);
+    // Preload brand-specific images from Wikipedia
+    await preloadBrandImages(products);
     currentResults = products;
     lastSearchTerm = term;
 
@@ -1900,7 +1902,7 @@ function createTeaCard(product, index) {
     </div>`;
 
   // Load image via JS for reliable mobile behavior
-  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index);
+  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index, product.brand);
   const imgEl = card.querySelector(".card-img");
   const illustration = card.querySelector(".card-illustration");
   loadCardImage(imgEl, illustration, imgUrl);
@@ -1917,10 +1919,83 @@ function createTeaCard(product, index) {
 }
 
 /* ==============================================================
-   TEA PHOTO URLS — Bing Image CDN (ts*.mm.bing.net)
-   Curated real tea photos, accessible from China.
+   DYNAMIC BRAND IMAGE SEARCH
+   Searches Wikipedia + Wikimedia Commons for real brand/product images.
    ============================================================== */
 
+// Cache: brand name → image URL
+const brandImageCache = {};
+
+async function preloadBrandImages(products) {
+  // Collect unique brands
+  const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
+  if (brands.length === 0) return;
+
+  // Build batch Wikipedia API request for all brands at once
+  const titles = brands.map(b => encodeURIComponent(b)).join("|");
+  const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${titles}&prop=pageimages&piprop=thumbnail&pithumbsize=400&format=json&origin=*`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const resp = await fetch(wikiUrl, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const pages = data.query?.pages || {};
+    for (const pid in pages) {
+      const page = pages[pid];
+      const brandName = page.title;
+      const thumb = page.thumbnail?.source;
+      if (thumb) {
+        // Match back to original brand search term
+        for (const brand of brands) {
+          if (brandName.toLowerCase().includes(brand.toLowerCase()) || brand.toLowerCase().includes(brandName.toLowerCase().split(" ")[0])) {
+            brandImageCache[brand] = thumb;
+            break;
+          }
+        }
+        // Also store by page title
+        brandImageCache[brandName] = thumb;
+      }
+    }
+  } catch (e) {
+    // Wikipedia search failed — will fall back to category images
+    console.log("Brand image preload skipped:", e.message);
+  }
+
+  // For brands without Wikipedia results, try Wikimedia Commons
+  const missingBrands = brands.filter(b => !brandImageCache[b]);
+  if (missingBrands.length > 0) {
+    await searchCommonsForBrands(missingBrands);
+  }
+}
+
+async function searchCommonsForBrands(brands) {
+  for (const brand of brands) {
+    try {
+      const query = encodeURIComponent(`${brand} tea`);
+      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${query}&srnamespace=6&format=json&origin=*&srlimit=3`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const files = data.query?.search || [];
+      if (files.length > 0) {
+        // Get the first file's image URL
+        const fileName = files[0].title.replace("File:", "");
+        const imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileName)}?width=400`;
+        brandImageCache[brand] = imageUrl;
+      }
+    } catch (e) {
+      // Skip this brand
+    }
+  }
+}
+
+/* ---- Category-based fallback images ---- */
 const TEA_PHOTOS = {
   green: [
     "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Longjing_tea.jpg/500px-Longjing_tea.jpg",
@@ -2008,7 +2083,20 @@ const TEA_PHOTOS = {
   ]
 };
 
-function getTeaPhotoUrl(category, index) {
+function getTeaPhotoUrl(category, index, brand) {
+  // 1. Brand-specific Wikipedia image (highest priority)
+  if (brand && brandImageCache[brand]) {
+    return brandImageCache[brand];
+  }
+  // Also check fuzzy match
+  if (brand) {
+    for (const key in brandImageCache) {
+      if (key.toLowerCase().includes(brand.toLowerCase()) || brand.toLowerCase().includes(key.toLowerCase())) {
+        return brandImageCache[key];
+      }
+    }
+  }
+  // 2. Category fallback (Wikipedia-curated tea images)
   const photos = TEA_PHOTOS[category] || TEA_PHOTOS.generic;
   return photos[index % photos.length];
 }
@@ -2187,7 +2275,7 @@ function openDetail(product) {
   const card = document.getElementById("detailCard");
   card.innerHTML = `
     <button class="detail-close" onclick="closeDetail()">✕</button>
-    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0)}"
+    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0, product.brand)}"
          alt="${escapeHTML(product.name)}" onerror="this.style.display='none'">
     <div class="detail-body">
       <div class="detail-brand">${escapeHTML(product.brand)}</div>
