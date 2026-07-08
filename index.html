@@ -549,16 +549,7 @@ body {
 /* Card Illustration */
 .card-illustration { height: 200px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .card-illustration svg { width: 100%; height: 100%; position: absolute; inset: 0; z-index: 1; }
-.card-illustration .card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; opacity: 0; transition: opacity 0.5s ease; }
-.card-illustration .card-img.loaded { opacity: 1; }
-.card-illustration .card-img.loaded ~ svg { opacity: 0; transition: opacity 0.3s ease; }
-.tea-card:hover .card-illustration .card-img.loaded { transform: scale(1.05); transition: transform 0.6s cubic-bezier(0.4,0,0.2,1); }
-@keyframes imgShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-.card-illustration:not(.image-loaded)::before {
-  content: ""; position: absolute; inset: 0; z-index: 3;
-  background: linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.03) 50%, transparent 75%);
-  background-size: 200% 100%; animation: imgShimmer 1.5s infinite; pointer-events: none;
-}
+.tea-card:hover .card-illustration svg { transform: scale(1.04); transition: transform 0.6s cubic-bezier(0.4,0,0.2,1); }
 /* Tea type backgrounds (warm paper tones) */
 .tea-green  { background: linear-gradient(165deg, #f0f5eb 0%, #dce8d5 50%, #c8dcc0 100%); }
 .tea-black  { background: linear-gradient(165deg, #f8f0eb 0%, #eeddd0 50%, #e0c8b5 100%); }
@@ -723,12 +714,15 @@ body {
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
 }
-.detail-img {
+.detail-svg {
   width: 100%;
   height: 280px;
-  object-fit: cover;
-  display: block;
-  background: linear-gradient(165deg, #f5f0eb 0%, #e8dcd0 50%, #d8c8b5 100%);
+  overflow: hidden;
+  position: relative;
+}
+.detail-svg svg {
+  width: 100%;
+  height: 100%;
 }
 .detail-body { padding: 28px 32px 32px; }
 .detail-brand { font-size: 0.85rem; color: var(--tea-gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
@@ -769,7 +763,7 @@ body {
 .detail-close:hover { background: rgba(0,0,0,0.7); }
 @media (max-width: 768px) {
   .detail-body { padding: 20px; }
-  .detail-img { height: 200px; }
+  .detail-svg { height: 200px; }
   .detail-name { font-size: 1.3rem; }
 }
 
@@ -1823,36 +1817,6 @@ function renderResults(term, products) {
   });
 }
 
-/* ==============================================================
-   IMAGE LOADER — Uses JS Image() for reliable mobile loading.
-   Falls back to SVG illustration on timeout or error.
-   ============================================================== */
-
-function loadCardImage(imgEl, illustration, url) {
-  const loader = new Image();
-  let done = false;
-
-  const show = () => {
-    if (done) return;
-    done = true;
-    imgEl.src = url;
-    imgEl.classList.add("loaded");
-    illustration.classList.add("image-loaded");
-  };
-
-  loader.onload = show;
-  loader.onerror = () => {}; // SVG stays visible, no action needed
-
-  // 6-second timeout for slow/mobile networks
-  setTimeout(() => {
-    if (!done) { done = true; /* SVG stays visible */ }
-  }, 6000);
-
-  loader.src = url;
-  // If image was cached, onload may have already fired synchronously
-  if (loader.complete) show();
-}
-
 function createTeaCard(product, index) {
   const card = document.createElement("div");
   card.className = "tea-card";
@@ -1861,9 +1825,8 @@ function createTeaCard(product, index) {
   const teaSvg = getTeaSvg(product.tea_category || "generic", index);
 
   card.innerHTML = `
-    <div class="card-illustration ${catClass}" style="cursor:pointer" onclick="openDetail(currentResults[${index}])">
+    <div class="card-illustration ${catClass}" onclick="openDetail(currentResults[${index}])" style="cursor:pointer">
       ${teaSvg}
-      <img class="card-img" alt="${escapeHTML(product.name)}">
     </div>
     <div class="card-body" onclick="openDetail(currentResults[${index}])" style="cursor:pointer">
       <div class="card-brand">${escapeHTML(product.name)}</div>
@@ -1884,12 +1847,6 @@ function createTeaCard(product, index) {
       </div>
     </div>`;
 
-  // Load image via JS for reliable mobile behavior
-  const imgUrl = getTeaPhotoUrl(product.tea_category || "generic", index, product.brand);
-  const imgEl = card.querySelector(".card-img");
-  const illustration = card.querySelector(".card-illustration");
-  loadCardImage(imgEl, illustration, imgUrl);
-
   // Stagger animation
   setTimeout(() => {
     card.classList.add("visible");
@@ -1899,68 +1856,6 @@ function createTeaCard(product, index) {
   updateFavButtonState(product.id, card);
 
   return card;
-}
-
-/* ---- Brand → Product Image Map (Bing CDN — real product photos) ---- */
-const BRAND_IMAGES = {
-  twg:          "https://ts2.mm.bing.net/th?id=OIP.uOeWq9xyvVaNPVDn0uOVowHaGB&w=400&h=280&c=7&rs=1",
-  twinings:     "https://ts1.mm.bing.net/th?id=OIP.JqYvbh_1j_0t42lwE9w2YAHaKE&w=400&h=280&c=7&rs=1",
-  dilmah:       "https://ts2.mm.bing.net/th?id=OIP.j2WV9TOaAY6qt-yyaKfulQHaER&w=400&h=280&c=7&rs=1",
-  whittard:     "https://ts2.mm.bing.net/th?id=OIP.GUiUnh3ZAVW0KO4i2N7H_AHaE6&w=400&h=280&c=7&rs=1",
-  "harney":     "https://ts3.mm.bing.net/th?id=OIP.HcZ6aCjRwLO1ZkUwc6iPHgHaD6&w=400&h=280&c=7&rs=1",
-  "fortnum":    "https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1",
-  "mariage":    "https://ts1.mm.bing.net/th?id=OIP.598pKRgwbM1nwAzQejrm-QHaEG&w=400&h=280&c=7&rs=1",
-  lipton:       "https://ts4.mm.bing.net/th?id=OIP.wt8RC9DJEU8GaITAbAGuwgHaJ4&w=400&h=280&c=7&rs=1",
-  bigelow:      "https://ts2.mm.bing.net/th?id=OIP.AlOIbrmRAw4tlhNv1BzxWAHaKe&w=400&h=280&c=7&rs=1",
-  "tea forte":  "https://ts1.explicit.bing.net/th?id=OIP.JTzBIFidlF0zFR1FbpWYogHaFj&w=400&h=280&c=7&rs=1",
-  vahdam:       "https://ts3.mm.bing.net/th?id=OIP.eq8-eW7McD04n0piI1d-RwHaIw&w=400&h=280&c=7&rs=1",
-  numi:         "https://ts4.mm.bing.net/th?id=OIP.02gHa-wFR3VDAVnbz1eHIQHaEL&w=400&h=280&c=7&rs=1",
-  "republic of tea":"https://ts2.mm.bing.net/th?id=OIF.%2fIgXu5b0k1AXbezsUr13Gg&w=400&h=280&c=7&rs=1",
-  tazo:         "https://ts4.mm.bing.net/th?id=OIP.tUVGkRNGFesHuksjxNImlQHaKe&w=400&h=280&c=7&rs=1",
-  "mighty leaf":"https://ts4.mm.bing.net/th?id=OIP.KjZzeGnC7xf9NXYH4BiyhQHaF9&w=400&h=280&c=7&rs=1",
-  "ito en":     "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
-  伊藤園:        "https://ts4.mm.bing.net/th?id=OIP.tWV_UwZAJ-nv34oT9ilD1QAAAA&w=400&h=280&c=7&rs=1",
-  辻利:          "https://ts3.mm.bing.net/th?id=OIP.k4hRTAdXq7n3fgdHSNsltAHaDa&w=400&h=280&c=7&rs=1",
-  一保堂:        "https://ts4.mm.bing.net/th?id=OIP.EIYJr71LBat4M9yNuWqfrQHaEK&w=400&h=280&c=7&rs=1",
-  中村藤吉:      "https://ts2.mm.bing.net/th?id=OIP.Vn0T2WyCp9Cyjw-uCRvVSQHaGO&w=400&h=280&c=7&rs=1",
-  大益:          "https://ts3.mm.bing.net/th?id=OIP.JXMfNO543UN-Jxxbm5wz2AHaLH&w=400&h=280&c=7&rs=1",
-  天福:          "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
-  天福茗茶:      "https://ts4.mm.bing.net/th?id=OIP.IruAK_-UyGKpCKLddo1DZgHaM-&w=400&h=280&c=7&rs=1",
-  八馬:          "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
-  八马茶业:      "https://ts2.mm.bing.net/th?id=OIP.8iOuiCVz7tisc4X-iupt6QHaFd&w=400&h=280&c=7&rs=1",
-  竹叶青:        "https://ts2.mm.bing.net/th?id=OIP.HLn7ypqO7l1fej4kV5FUwwHaE8&w=400&h=280&c=7&rs=1",
-  张一元:        "https://ts4.mm.bing.net/th?id=OIP.KfcNS3Yit3u9VvJtMq1UGwHaEl&w=400&h=280&c=7&rs=1",
-  正山堂:        "https://ts3.mm.bing.net/th?id=OIP.gLx6z8S01H3UuG9rotWaBwHaEe&w=400&h=280&c=7&rs=1",
-  小罐茶:        "https://ts4.mm.bing.net/th?id=OIP.y38ovxYomlfIQl4WxYLqaAHaE7&w=400&h=280&c=7&rs=1",
-};
-
-/* Category fallback images (used when brand not in library) */
-const CATEGORY_FALLBACK = {
-  green:  "https://ts1.mm.bing.net/th?id=OIP.gEfbFPcEUTXhiMaRCK4qPAHaFq&w=400&h=280&c=7&rs=1",
-  black:  "https://ts4.mm.bing.net/th?id=OIP.-bG5aGz101AKOG_LWydIDgHaFj&w=400&h=280&c=7&rs=1",
-  oolong: "https://ts3.mm.bing.net/th?id=OIP.7DZsD5ureWQfHJv3x76QEgHaHR&w=400&h=280&c=7&rs=1",
-  white:  "https://ts4.mm.bing.net/th?id=OIP.Vm_1x8g0T7HDh1wx0ibhKgHaFO&w=400&h=280&c=7&rs=1",
-  puer:   "https://ts2.mm.bing.net/th?id=OIP.fZqxfysbtMDwHLMEtEW07wHaEe&w=400&h=280&c=7&rs=1",
-  herbal: "https://ts1.mm.bing.net/th?id=OIP.0qT-ewKmQwR6pKuo7aOlzwHaES&w=400&h=280&c=7&rs=1",
-  generic:"https://ts4.mm.bing.net/th?id=OIF.yNWrk1pERMQLyrOKrobmbg&w=400&h=280&c=7&rs=1"
-};
-
-function getTeaPhotoUrl(category, index, brand) {
-  // 1. Exact brand match
-  if (brand && BRAND_IMAGES[brand.toLowerCase()]) {
-    return BRAND_IMAGES[brand.toLowerCase()];
-  }
-  // 2. Fuzzy brand match
-  if (brand) {
-    const b = brand.toLowerCase();
-    for (const key in BRAND_IMAGES) {
-      if (b.includes(key) || key.includes(b)) {
-        return BRAND_IMAGES[key];
-      }
-    }
-  }
-  // 3. Category fallback
-  return CATEGORY_FALLBACK[category] || CATEGORY_FALLBACK.generic;
 }
 
 /* ==============================================================
@@ -2137,8 +2032,7 @@ function openDetail(product) {
   const card = document.getElementById("detailCard");
   card.innerHTML = `
     <button class="detail-close" onclick="closeDetail()">✕</button>
-    <img class="detail-img" src="${getTeaPhotoUrl(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0, product.brand)}"
-         alt="${escapeHTML(product.name)}" onerror="this.style.display='none'">
+    <div class="detail-svg">${getTeaSvg(product.tea_category || 'generic', parseInt(product.id.slice(-2),16) || 0)}</div>
     <div class="detail-body">
       <div class="detail-brand">${escapeHTML(product.brand)}</div>
       <h2 class="detail-name">${escapeHTML(product.name)}</h2>
